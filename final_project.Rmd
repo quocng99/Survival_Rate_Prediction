@@ -1,0 +1,581 @@
+---
+title: "final_project"
+author: "QuocNguyen"
+date: "2023-11-10"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+# Introduction
+
+Logistic regression analysis is a commonly used model when the response variable is a binary dependent variables. When there are more than two classes, we would prefer the multinomial logistic regression. Logistic regression not only can predict the possibility of one observation based on predictors, but it is also helpful in measuring the relationship between the dependent variable and other independent variables.
+
+In this project, I will utilize the logistic regression model not only to identify the relationship between medical predictors and heart failure but also  to predict the survival of a patient based on these healthcare variables. 
+
+# Dataset
+
+Dataset used in this project contains the health records of 299 heart failure patients at the Faisalabad Institute of Cardiology and at the Allied Hospital in Faisalabad (Punjab, Pakistan), during April–December 2015. The patients consisted of 105 women and 194 men, and their ages range between 40 and 95 years old . All 299 patients had left ventricular systolic dysfunction and had previous heart failures that put them in classes III or IV of New York Heart Association (NYHA) classification of the stages of heart failure. (Download data here: https://archive.ics.uci.edu/dataset/519/heart+failure+clinical+records).
+
+Dataset contains 12 variables and one dependent variables. All the variables will be described below: 
+
+* **age**: age of the patient (Years)
+* **anaemia**: decrease of red blood cells or hemoglobin. 0 as no anaemia; 1 otherwise
+* **creatinine_phosphokinase**: level of the CPK enzyme in the blood (mcg/L)
+* **diabetes**: if the patient has diabetes. 0 if patient has no diabetes; 1 otherwise
+* **ejection_fraction**: percentage of blood leaving the heart at each contraction (Percentage)
+* **high_blood_pressure**: if the patient has hypertension. 0 as no high blood; 1 otherwise
+* **platelets**: platelets in the blood (kiloplatelets/mL) 
+* **serum_creatinine**: level of serum creatinine in the blood (mg/dL)
+* **serum_sodium**: level of serum sodium in the blood (mEq/L)
+* **sex**: woman or man. 0 as woman; 1 as man
+* **smoking**: if the patient smokes or not. 0 as no-smoking; 1 otherwise
+* **time**: follow-up period
+* **DEATH_EVENT**: if the patient died during the follow-up period. 0 as survived; 1 as dead
+
+
+# EDA
+
+Before looking for the best logistic regression model, we need to explore our dataset.
+
+```{r}
+library(readr)
+
+df=read.csv("heart_failure_clinical_records_dataset.csv")
+
+head(df,2)
+
+str(df)
+summary(df)
+```
+
+Dataset does not include any missing values.
+
+```{r}
+print("Total missing values in data -")
+sum(is.na(df))
+
+```
+
+
+```{r,echo=FALSE}
+
+df$DEATH_EVENT<-as.factor(df$DEATH_EVENT)
+df$anaemia<-as.factor(df$anaemia)
+df$diabetes<-as.factor(df$diabetes)
+df$high_blood_pressure<-as.factor(df$high_blood_pressure)
+df$sex<-as.factor(df$sex)
+df$smoking<-as.factor(df$smoking)
+```
+
+```{r,echo=FALSE}
+
+library(ggplot2)
+library(ggpubr)
+
+age_box<-ggplot(data=df,aes(y=age,x=DEATH_EVENT,fill=DEATH_EVENT))+xlab("Death event")+geom_boxplot()+theme_classic()
+
+creatinine_phosphokinase_box<-ggplot(data=df,aes(y=creatinine_phosphokinase,x=DEATH_EVENT,fill=DEATH_EVENT))+
+  xlab("Death event")+
+  geom_boxplot()+theme_classic()
+
+ejection_fraction_box<-ggplot(data=df,aes(y=ejection_fraction,x=DEATH_EVENT,fill=DEATH_EVENT))+
+  xlab("Death event")+
+  geom_boxplot()+theme_classic()
+
+platelets_box<-ggplot(data=df,aes(y=platelets,x=DEATH_EVENT,fill=DEATH_EVENT))+
+  xlab("Death event")+
+  geom_boxplot()+theme_classic()
+
+serum_creatinine_box<-ggplot(data=df,aes(y=serum_creatinine,x=DEATH_EVENT,fill=DEATH_EVENT))+
+  xlab("Death event")+
+  geom_boxplot()+theme_classic()
+
+serum_sodium_box<-ggplot(data=df,aes(y=serum_sodium,x=DEATH_EVENT,fill=DEATH_EVENT))+
+  xlab("Death event")+
+  geom_boxplot()+theme_classic()
+
+time_box<-ggplot(data=df,aes(y=time,x=DEATH_EVENT,fill=DEATH_EVENT))+
+  xlab("Death event")+
+  geom_boxplot()+theme_classic()
+#Arrange all the plot
+ggarrange(
+  age_box, creatinine_phosphokinase_box, ejection_fraction_box,platelets_box,serum_creatinine_box,serum_sodium_box,time_box,
+  common.legend = TRUE, legend = "bottom"
+  )
+
+```
+
+We have some interesting points based on the boxplot of dead and survived patients:
+
+* For platelets, level of serum creatinine, CPK enzyme and serum sodium in the blood, there are no significant differences between dead and survived patients.
+
+* Period followed-up of survived patients tends to much higher than deceased cases.
+
+* Dead patients are older than the survived since the minimum age of dead patients are nearly equal the average age of the survived patients.
+
+* Patients who survived would have the higher percentage of blood leaving the heart at each contraction. The average rate of the survived is 40.27%, and only 33.47% for the dead.
+
+
+```{r,echo=FALSE}
+
+#anaemia
+anaemia_count<-as.data.frame(prop.table(table(df$DEATH_EVENT,as.factor(df$anaemia))))
+colnames(anaemia_count)<-c("dead",'anaemia','freq')
+anaemia_plot<-ggplot(data=anaemia_count,aes(x=anaemia,y=freq,fill=dead)) +
+  geom_bar(stat = 'identity',position = 'dodge')+theme_classic()
+
+#diabetes
+diabetes_count<-as.data.frame(prop.table(table(df$DEATH_EVENT,as.factor(df$diabetes))))
+colnames(diabetes_count)<-c("dead",'diabetes','freq')
+diabetes_plot<-ggplot(data=diabetes_count,aes(x=diabetes,y=freq,fill=dead)) + 
+  geom_bar(stat = 'identity',position = 'dodge')+theme_classic()
+
+#high_blood_pressure
+high_blood_pressure_count<-as.data.frame(prop.table(table(df$DEATH_EVENT,as.factor(df$high_blood_pressure))))
+colnames(high_blood_pressure_count)<-c("dead",'high_blood_pressure','freq')
+
+high_blood_pressure_plot<-ggplot(data=high_blood_pressure_count,aes(x=high_blood_pressure,y=freq,fill=dead))+
+  geom_bar(stat = 'identity',position = 'dodge')+theme_classic()
+
+#sex
+sex_count<-as.data.frame(prop.table(table(df$DEATH_EVENT,as.factor(df$sex))))
+colnames(sex_count)<-c("dead",'sex','freq')
+
+sex_plot<-ggplot(data=sex_count,aes(x=sex,y=freq,fill=dead)) + 
+  geom_bar(stat = 'identity',position = 'dodge')+theme_classic()
+
+#smoking
+smoking_count<-as.data.frame(prop.table(table(df$DEATH_EVENT,as.factor(df$smoking))))
+colnames(smoking_count)<-c("dead",'smoking','freq')
+
+smoking_plot<-ggplot(data=smoking_count,aes(x=smoking,y=freq,fill=dead)) +
+  geom_bar(stat = 'identity',position = 'dodge')+theme_classic()
+
+ggarrange(
+  anaemia_plot, diabetes_plot, high_blood_pressure_plot,sex_plot,smoking_plot,nrow=3,ncol=2)
+```
+
+In general, the bar plots above hardly to show any important indicators of the dependent variables. We can figure out the importance of these categorical variables later by the logistic regression model.
+
+Next, we might want if there is any cases of multicollinearity in this dataset since multicollinearity  could affect on the results of the logistic regression models. To identify it, I will use the correlation matrix.
+
+```{r}
+library(ggcorrplot)
+model.matrix(~0+., data=df) %>% 
+  cor(use="pairwise.complete.obs") %>% 
+  ggcorrplot(show.diag=FALSE, type="lower", lab=TRUE, lab_size=2,tl.cex=5)
+```
+
+The correlation matrix shows that the multicollinearity is not the problem in our dataset since there are no strong relations between each variables. The period follow-up has a moderate negative correlation with the dependent variables, with the coefficient of -0.53. Other variables are almost uncorrelated with the target variable.
+
+# Methodology
+
+Logistic regression model is the main model. Moreover, in this project, we would apply some criteria for the model selection. First, I will create the original model that include all predictors of dataset
+```{r}
+original_model<-glm(DEATH_EVENT~.,family = binomial,data=df)
+summary(original_model)
+original_model$deviance
+```
+
+In this original one, p-value shows that only age, ejection_fraction, serum_creatinine and time are statistically significant. Furthermore, no categorical variable has the statistical effect on the dependent variable. And the deviance of the original model is 219.5541 with degree of freedom of 298, which shows the original model is not good.
+
+I  will transform the platelets and creatinine_phosphokinase using the logarithm function.
+
+```{r}
+#Add log_platelets, log_creatinine_phosphokinase
+df$logplatelets<-log(df$platelets)
+df$logcreatinine_phosphokinase<-log(df$creatinine_phosphokinase)
+model1<-glm(DEATH_EVENT~.-creatinine_phosphokinase-platelets,family = binomial,data=df)
+summary(model1)
+model1$deviance
+```
+
+By transforming these two variables, we can see that our new variable *logcreatinine_phosphokinase* has the p-value <0.05, which is statistically significant. And the deviance of this new model is also lower than the original.
+
+## AIC Criteria
+
+AIC criteria is also one of the way to compare the models. Here, I will use the forward AIC and backward AIC. In Forward selection, we start with the logistic regression model includes nothing. And for each step, one variable will be added in the model until we get the lowest AIC. On the other hand for Backward selection, we start with the model included full predictors, and each variable will be respectively removed out of the model until we get the model with the lowest AIC.
+
+First, we use the Backward AIC, we start with the *model1*.
+
+```{r}
+#Backwards AIC
+
+
+backwards = step(model1) # Backwards selection is the default
+
+summary(backwards)
+
+```
+
+After dropping steps, the final  model includes age, ejection_fraction, serum_creatinine, serum_sodium, sex, time and logcreatinine_phosphokinase.
+
+Next, we use the Forward AIC, which starts at the model with nothing to the *model1*.
+
+```{r}
+#Toward AIC
+#Model with nothing
+nothing<-glm(DEATH_EVENT~ 1,family=binomial,data=df)
+#Forward AIC
+forwards=step(nothing,direction="forward",scope=list(upper=model1,lower=nothing))
+summary(forwards)
+(forwards$deviance)
+```
+
+By adding variables respectively, we have the final model using Forwards AIC. And we can see that both backwards and forwards give us the model with the same predictors. From this final model, we can develop by add the intersection between sex and ejection fraction and the intersection between sex and logcreatinine_phosphokinase
+
+```{r}
+
+#Add the intersection between gender and other variables
+model3<-glm(DEATH_EVENT~age + ejection_fraction + serum_creatinine + 
+              serum_sodium + sex + time + logcreatinine_phosphokinase+
+              sex*ejection_fraction+
+ sex*logcreatinine_phosphokinase, 
+            family = binomial, data = df)
+summary(model3)
+(model3$deviance)
+model3$coefficients
+```
+
+The model with the intersections has the deviance is smaller than the backwards model.
+
+```{r}
+#Chisquare test between two models
+anova(backwards,model3,test='Chisq')
+```
+
+Instead of comparing the deviance, we use Chi-square test to compare two models. The p-value is statistically significant, which implies that the significantly effect of the intersection.
+
+# Model interpretation
+
+
+The final model is expressed as below:
+
+$$\log(\frac{\pi_i}{1-\pi_i})=7.40+0.051.Age-0.048.EjectionFraction+0.644.SerumCreatinine-0.093.Sodium+6.927.Sex+$$
+$$-0.024.Time+0.947.Phosphokinase+0.07.(Ejection\times sex)-0.886.(Phosphokinase\times sex)$$
+
+
+## Coefficients 
+
+### Interpretations
+
+We can interpret model as follows:
+
+* Holding other variables as constant, the odds of dead by heart failure are predicted to grow about 1.05 times for an increase of one year-old in age of the patient.
+
+* Holding other variables as constant, the odds of dead by heart failure are predicted to decrease about 0.953 times for one ejection rate increase. 
+
+In our problem, we have Gender variable as the binary variable, where 0 denoted as Female and 1 as False
+
+When the patient is Male, we have:
+
+$$\log(\frac{\pi_i}{1-\pi_i})=7.40+0.051.Age+(-0.07-0.048).EjectionFraction+0.644.SerumCreatinine-0.093.Sodium+$$
+$$+6.927-0.024.Time+(0.947-0.886).Phosphokinase$$
+
+and when a patient is Female, we have:
+
+$$\log(\frac{\pi_i}{1-\pi_i})=7.40+0.051.Age-0.048.EjectionFraction+0.644.SerumCreatinine-0.093.Sodium+$$
+$$-0.024.Time+0.947.Phosphokinase$$
+
+The difference of log odds ratio between Female and Male patients is the sum of $B_{sex}+B_{(Ejection\times sex)}.Eject+B_{(Phosphokinase\times sex)}.Phosphokinase$.
+
+When a patient is Male, one unit increase in ejection fraction would decrease the odds of dead 0.8887 times. And one-unit increase in logPhosphokinase, we expect the odds of dead to grow by 6%.
+
+
+### Confidence interval of coefficients
+```{r}
+confint(model3)
+```
+
+We can find the 95% confidence interval of each coefficient by the givien Standard error. For example, we are 95% confident that the *Age* coefficient lies between 0.02 and 0.08.
+
+### p-values
+
+We see that p-values of all coefficients are smaller than 0.05, which indicates that age of the patient, percentage of blood leaving the heart at each contraction, level of serum creatinine and sodium in the blood, the time followed-up, the gender of the patient, log of level of the CPK enzyme in the blood and the intersections have significant effects on the survival rate. Later, we will would rank the these features  to indicate which is the most important factor that affect on the response variable.
+
+
+
+## Deviance
+
+The smaller the deviance of the model, the better the model is. In our model, we have the deviance is the smallest deviance compared to other models that we tested, which implies we possibly got the good logistic regression model.
+
+```{r}
+#Deviance
+model3$deviance
+#Degree of freedom
+model3$df.residual
+```
+
+## Goodness of Fit Test
+
+To confirm our selection, we need to check its GOF to know if this model does fit well on our dataset. The Hosmer-Lemeshow test and residual deviance test will be used to check the GOF.
+
+```{r}
+library(ResourceSelection)
+#Hosmer-Lemeshow
+hoslem.test(df$DEATH_EVENT, fitted(model3))
+#Test residual deviance
+1-pchisq(model3$deviance,model3$df.residual)
+```
+
+Since p-value of both tests are larger than 0.5, we conclude that lack-of-fit does not appear in our model.
+
+
+# Prediction accuracy
+
+To avoid the bias in prediction, dataset will be splitted  into training (70%) and testing (30%) dataset. 
+
+```{r}
+#make this example reproducible
+set.seed(100)
+df$DEATH_EVENT<-as.factor(df$DEATH_EVENT)
+#use 70% of dataset as training set and 30% as test set
+sample <- sample(c(TRUE, FALSE), nrow(df), replace=TRUE, prob=c(0.7,0.3))
+train  <- df[sample, ]
+test   <- df[!sample, ]
+
+```
+
+Now, we build the model using the training dataset. After that, we will test the accuracy of our model using the testing dataset. This will avoid the bias in predicted results.
+
+```{r}
+library(pROC)
+# Train on training dataset
+model3<-glm(DEATH_EVENT~age + ejection_fraction + serum_creatinine + 
+              serum_sodium + sex + time + logcreatinine_phosphokinase+
+              sex*ejection_fraction+sex*logcreatinine_phosphokinase, 
+            family = binomial, 
+            data = train) 
+
+# Run the model on test dataset
+test_prob_logistic<-predict(model3,test,type ="response")
+# Choose threshold=0.5
+test_pred_logistic<-ifelse(test_prob_logistic > 0.5,"1","0")
+#Compare
+cat("Confusion matrix of logistic regression on test data")
+table(test_pred_logistic,test$DEATH_EVENT)
+
+#Accuracy on testing dataset
+
+accuracy_logistic<-round(mean(test_pred_logistic==test$DEATH_EVENT),4)
+
+cat("Accuracy of Logistic regression model on test data is:",accuracy_logistic)
+
+
+# Run the model on train dataset
+
+train_prob<-predict(model3,type ="response")
+
+train_pred<-ifelse(train_prob > 0.5,"1","0")
+
+#Accuracy on training dataset
+cat("Accuracy of Logistic regression model on training data",mean(train_pred==train$DEATH_EVENT))
+
+
+
+```
+
+The accuracy of the logistic regression model on testing dataset is 80.2%, which is pretty well. We also get the accuracy of 86.05% of the model on the training dataset.
+
+However, this shows that we migh be facing the problem of overfitting, when the accuracy on the training dataset is larger than the accuracy on the testing dataset nearly 6%. To solve this problem, we can use Lasso technique.
+
+```{r}
+library(glmnet)
+#Data prepare
+
+levels(train$DEATH_EVENT) <- c("survived", "died")
+levels(test$DEATH_EVENT) <- c("survived", "died")
+
+#Train matrix data
+x<-model.matrix(DEATH_EVENT~.,train)[,-1]
+y<-train$DEATH_EVENT
+
+#Test matrix data
+x_test<-model.matrix(DEATH_EVENT~.,test)[,-1]
+y_test<-test$DEATH_EVENT
+
+#Lasso 
+cv.lasso<-cv.glmnet(x,y,alpha=1,family='binomial')
+
+plot(cv.lasso)
+
+# Fit the final model on the training data
+lasso_model <- glmnet(x, y, alpha = 1, family = "binomial",
+                lambda = cv.lasso$lambda.min)
+
+
+
+
+
+test_prob_lasso=predict(lasso_model,x_test ,type ="response")
+
+test_classes_lasso<-ifelse(test_prob_lasso>0.5,"died","survived")
+
+accuracy_lasso<-round(mean(test_classes_lasso==y_test),4)
+cat("Accuracy of Lasso model on test data is:",accuracy_lasso)
+
+#roc_lasso_model <- roc(y_test, test_prob)
+
+```
+
+## Evaluate Logistic regression and Lasso regression model
+
+To evaluate the predictive model, we not only use the accuracy rate, but also other measurements, such as the sensitivity or specificity.  Sensitivity measurement shows the ability of the model to predict correctly the survival cases; and the specificity tells us the ability of the model to predict correctly the dead cases. Usually, when the sensitivity increases, the specificity decreases and otherwise. 
+
+Moreover, the area under the ROC curve is called AUC. AUC is also a important measurement to evaluate one model. The higher the AUC, the better the model distinguish between survived class and dead class.
+
+```{r,echo=FALSE}
+library(caret)
+#Logistic regression AUC, Sensitivity and Specificity
+auc_logistic <- round(auc(test$DEATH_EVENT, test_prob_logistic),4)
+cat("AUC of Logistic Regression model is:",auc_logistic)
+sensitivity_logistic<-round(sensitivity(as.factor(ifelse(test_prob_logistic>0.5,'died','survived')),test$DEATH_EVENT),4)
+cat("Sensitivity of Logistic Regression model is:",sensitivity_logistic)
+specificity_logistic<-round(specificity(as.factor(ifelse(test_prob_logistic>0.5,'died','survived')),test$DEATH_EVENT),4)
+cat("Specificity of Logistic Regression model is:",specificity_logistic)
+
+#Lasso regression AUC, Sensitivity and Specificity
+auc_lasso <- round(auc(y_test, test_prob_lasso),4)
+cat("AUC of Lasso Regression model is:",auc_lasso)
+sensitivity_lasso<-round(sensitivity(as.factor(test_classes_lasso),as.factor(y_test)),4)
+cat("Sensitivity of Lasso Regression model is:",sensitivity_lasso)
+specificity_lasso<-round(specificity(as.factor(test_classes_lasso),as.factor(y_test)),4)
+cat("Specificity of Lasso Regression model is:",specificity_lasso)
+```
+
+While the our final logistic regression model has the lower accuracy but the percentage the logistic regression model can distinguish between the dead cases and the survival cases up to 91%. On the other hand, Lasso regression model has higher accuracy on test data but it's AUC is lower than Logistic model's AUC.
+
+At the threshold =0.5, the Lasso model may have the higher accuracy rate than our final model. However, we can adjust this threshold to another value, the Logistic regression model can distinguish two classes better than the Lasso model. 
+
+Furthermore, at threshold =0.5, Lasso regression model predicts correctly the survival patient better than the Logistic regression, and otherwise.
+
+# Compare with other machine learning models
+
+In this section, I will compare the two our logistic regression with other classification models (Naive Bayes, Random Forest, Gradient Boosting, Decision Tree, SVM and also Ensemble model and Stack mode of these machine learning models).
+
+```{r,echo=FALSE,results='hide'}
+library(caret) #classification models
+library(caretEnsemble)#ensemble methods
+
+control=trainControl(method="repeatedcv", number=10, repeats=5, savePredictions=TRUE, classProbs=TRUE)
+
+
+algorithim=c('lda', 'rpart', 'rf', 'svmRadial','nb','gbm')
+
+
+models=caretList(x,y,trControl = control,
+                 methodList = algorithim)
+
+ensemble <- caretEnsemble(models)
+
+stack<-caretStack(models)
+
+
+# PREDICTIONS
+pred_lda <- predict.train(models$lda, newdata = x_test)
+pred_rpart <- predict.train(models$rpart, newdata = x_test)
+pred_rf <- predict.train(models$rf, newdata = x_test)
+pred_svm <- predict.train(models$svmRadial, newdata = x_test)
+pred_nb <- predict.train(models$nb, newdata = x_test)
+pred_gbm <- predict.train(models$gbm, newdata = x_test)
+predict_ensemble <- predict(ensemble, newdata = x_test)
+predict_stack <- predict(stack, newdata = x_test)
+
+
+
+models_compare<-data.frame(Model=c("Logistic regression","Lasso regression","Ensemble model","Stack model","LDA","Decision Tree","Random Forest","SVM","Naive Bayes","Gradient Boosting"),
+                           Accuracy=c(accuracy_logistic,
+                                      accuracy_lasso,
+                                      round(mean(predict_ensemble==y_test),4), #ENSEMBLE
+                                      round(mean(predict_stack==y_test),4),    #STACK
+                                      round(mean(pred_lda==y_test),4),         #LDA
+                                      round(mean(pred_rpart==y_test),4),      #DECISION TREE
+                                      round(mean(pred_rf==y_test),4),         #RANDOM FOREST
+                                      round(mean(pred_svm==y_test),4),        #SVM
+                                      round(mean(pred_nb==y_test),4),         #NAIVE
+                                      round(mean(pred_gbm==y_test),4)),      #C5
+                           Sensitivity=c(sensitivity_logistic,
+                                         sensitivity_lasso,
+                                         round(sensitivity(predict_ensemble,y_test),4),
+                                         round(sensitivity(predict_stack,y_test),4),
+                                         round(sensitivity(pred_lda,y_test),4),
+                                         round(sensitivity(pred_rpart,y_test),4),
+                                         round(sensitivity(pred_rf,y_test),4),
+                                         round(sensitivity(pred_svm,y_test),4),
+                                         round(sensitivity(pred_nb,y_test),4),
+                                         round(sensitivity(pred_gbm,y_test),4)),
+                           
+                           Specificity=c(specificity_logistic,
+                                         specificity_lasso,
+                                         round(specificity(predict_ensemble,y_test),4),
+                                         round(specificity(predict_stack,y_test),4),
+                                         round(specificity(pred_lda,y_test),4),
+                                         round(specificity(pred_rpart,y_test),4),
+                                         round(specificity(pred_rf,y_test),4),
+                                         round(specificity(pred_svm,y_test),4),
+                                         round(specificity(pred_nb,y_test),4),
+                                         round(specificity(pred_gbm,y_test),4)),
+                           AUC=c(auc_logistic,
+                                 auc_lasso,
+                                 auc(roc(ifelse(predict_ensemble=='survived',0,1),ifelse(y_test=='survived',0,1))),
+                                 auc(roc(ifelse(predict_stack=='survived',0,1),ifelse(y_test=='survived',0,1))),
+                                 auc(roc(ifelse(pred_lda=='survived',0,1),ifelse(y_test=='survived',0,1))),
+                                 auc(roc(ifelse(pred_rpart=='survived',0,1),ifelse(y_test=='survived',0,1))),
+                                 auc(roc(ifelse(pred_rf=='survived',0,1),ifelse(y_test=='survived',0,1))),
+                                 auc(roc(ifelse(pred_svm=='survived',0,1),ifelse(y_test=='survived',0,1))),
+                                 auc(roc(ifelse(pred_nb=='survived',0,1),ifelse(y_test=='survived',0,1))),
+                                 auc(roc(ifelse(pred_gbm=='survived',0,1),ifelse(y_test=='survived',0,1)))))
+
+
+
+
+```
+
+```{r,echo=FALSE}
+library(knitr)
+kable(models_compare)
+```
+```{r,echo=FALSE}
+#Lasso
+roc_lasso_model <- roc(y_test, test_prob_lasso)
+#Logistic
+roc_logistic<-roc(test$DEATH_EVENT,test_prob_logistic)
+#Plot ROC curves
+ggroc(list(Logistic=roc_logistic,
+           Lasso=roc_lasso_model,
+           Ensemble=roc(ifelse(predict_ensemble=='survived',0,1),ifelse(y_test=='survived',0,1)),
+           Stack=roc(ifelse(predict_stack=='survived',0,1),ifelse(y_test=='survived',0,1)),
+           LDA=roc(ifelse(pred_lda=='survived',0,1),ifelse(y_test=='survived',0,1)),
+           DTree=roc(ifelse(pred_rpart=='survived',0,1),ifelse(y_test=='survived',0,1)),
+           RF=roc(ifelse(pred_rf=='survived',0,1),ifelse(y_test=='survived',0,1)),
+           SVM=roc(ifelse(pred_svm=='survived',0,1),ifelse(y_test=='survived',0,1)),
+           NB=roc(ifelse(pred_nb=='survived',0,1),ifelse(y_test=='survived',0,1)),
+           GDB=roc(ifelse(pred_gbm=='survived',0,1),ifelse(y_test=='survived',0,1))),
+      lwd=1)+
+  geom_abline(intercept = 1, slope = 1, color = "red", linetype = "dashed", lwd=1)+
+  scale_color_manual(labels = c("Logistic", "Lasso","Ensemble","Stack",'LDA',"DTree","RF","SVM",'NB','GDB'), 
+                     values= c("#88D04B","#D65076","deepskyblue3","slategray1","darkorchid3","blue1","darkseagreen2",
+                               "lightcoral","slateblue1","lemonchiffon3","salmon"))+
+  ggtitle("ROC curves ")+
+  labs(x="Specificity", y="Sensitivity")+
+  theme(axis.text.y = element_text(size=12))+
+  theme(axis.text.x = element_text(size=12))+
+  theme(plot.title = element_text(face="bold", size=18))+
+  theme(axis.title = element_text(size=14))+
+  theme(strip.text = element_text(size = 14))+
+  theme(legend.title=element_blank())+
+  theme_minimal()
+
+
+```
+
+Look at the table above, we can see that compared to others models, the accuracy and sensitivity of Logistic regression is not really good. However, with the highest specificity means that our final logistic regression model works really well on predicting the dead cases. And Logistic regression model has the highest AUC, while other machine learning models have much lower AUC rate.
+
+# Conclusion
+
+After different steps of selection, we eventually have our final Logistic regression. We keep *Age*, *Ejection_fraction*, *serum_creatinine*, *serum_sodium*, *sex*, *time* and add into model new variables *logcreatinine_phosphokinase*. Moreover, we also include the intersection between gender and two other variables (eject_fraction and logcreatinine_phosphokinase). P-values show that every factors in the final model have significant effect on the dependent variable. By knowing these significant factors, patients who suffered from heart failure can be treated in time when there are some unusual changes in these heal factors.
+
+Moreover,  we  see the ability to distinguish  two classes is much better than other models. And it also works very well on predicting correctly the dead cases.
