@@ -28,4 +28,5 @@ Dataset contains 12 variables and one dependent variables. All the variables wil
 # Methodology
 
 In this project, I focused on Logistic Regression to understand the relationship between survival class and other relevant clinical covariates. Using different ways of selection, the final Logistic Regression was applied to predict the survival rate at the end.
+![summary_logistic_model](https://github.com/quocng99/Survival_Rate_Prediction/assets/124481291/9a86a8a3-d244-4437-ae03-d48071f1f3b3)
 
