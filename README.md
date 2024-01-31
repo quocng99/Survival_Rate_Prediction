@@ -32,5 +32,14 @@ In this project, I focused on Logistic Regression to understand the relationship
 
 At the end, I also compare the final logistic regression with other machine learning models, such as Random Forest, Naive Bayes. The accuracy and sensitivity of logistic regression on test dataset is not good as other models, but it gained very high specificity and AUC. 
 
+![model_compare](https://github.com/quocng99/Survival_Rate_Prediction/assets/124481291/4eef8402-87f2-41fa-9e1c-40baff62aee4)
+
+
+![ROC_curve](https://github.com/quocng99/Survival_Rate_Prediction/assets/124481291/8bcec507-f8e3-4798-930e-a79e7aac71fa)
+
+
+# Shiny App Dashboard
+
+I deployed the final logistic regression model into Shiny App. You can try to use my app to predict the survival rate.
 
 
