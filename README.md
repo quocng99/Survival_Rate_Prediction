@@ -40,6 +40,8 @@ At the end, I also compare the final logistic regression with other machine lear
 
 # Shiny App Dashboard
 
-I deployed the final logistic regression model into Shiny App. You can try to use my app to predict the survival rate.
+I deployed the final logistic regression model into Shiny App. You can try to use my app to predict the survival rate. Here is the link to the web https://qnguyen0508.shinyapps.io/prediction/
+
+![shiny_app](https://github.com/quocng99/Survival_Rate_Prediction/assets/124481291/2a21030b-f423-411a-bceb-742982d69766)
 
 
